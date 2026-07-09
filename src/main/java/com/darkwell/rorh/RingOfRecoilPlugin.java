@@ -158,18 +158,29 @@ public class RingOfRecoilPlugin extends Plugin {
 		return total;
 	}
 
-	public void decreaseChargeByOne(int ringId) {
+	protected void setCharges(int ringId, int amount) {
+		if(data.ringCharges.getOrDefault(ringId, -1) == amount) {
+			return;
+		}
+
+		if(amount == 0 && ringId == Constants.RING_OF_RECOIL_ID) {
+			amount = 40;
+		}
+
+		data.ringCharges.put(ringId, amount);
+		update();
+		log.debug("Charges for ring {} set to {}", ringId, amount);
+	}
+
+	protected void decreaseChargeByOne(int ringId) {
 		if (!data.ringCharges.containsKey(ringId)) {
 			log.debug("No recorded ring charge for {}", ringId);
 			return;
 		}
 		var charges = getCharges(ringId);
 		if (charges > -1) {
-			log.debug("Charges for ring {} decreased to {}", ringId, charges - 1);
-			data.ringCharges.put(ringId, charges - 1);
+			setCharges(ringId, charges - 1);
 		}
-
-		update();
 	}
 
 	public boolean isRecoilRing(int ring) {
@@ -222,10 +233,45 @@ public class RingOfRecoilPlugin extends Plugin {
 
 	//region Event Callbacks
 	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event) {
+		clientThread.invokeAtTickEnd(() -> handleWidgetLoaded(event));
+	}
+
+	private void handleWidgetLoaded(WidgetLoaded event) {
+		if (event.getGroupId() != Constants.RECOIL_BREAK_CHAT_WIDGET) {
+			return;
+		}
+
+		var parent = client.getWidget(Constants.RECOIL_BREAK_CHAT_WIDGET, 1);
+		if (parent == null) {
+			log.debug("Parent none");
+			return;
+		}
+
+		var child = parent.getChild(0);
+		if(child == null) {
+			log.debug("Child none");
+			return;
+		}
+
+		var matcher = Constants.RECOIL_BREAK_CHARGES.matcher(child.getText());
+		if(matcher.find()) {
+			setCharges(Constants.RING_OF_RECOIL_ID, Integer.parseInt(matcher.group(1)));
+		} else {
+			log.debug("No charge found in text: {}", child.getText());
+		}
+	}
+
+	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event) {
 		var option = event.getMenuOption();
 		var itemId = event.getWidget() != null ? event.getWidget().getItemId() : -1;
 		if ((option.equals("Check") || option.equals("Break")) && isRecoilRing(itemId)) {
+			overrideItemId = itemId;
+		}
+
+		var target = Text.removeTags(event.getMenuTarget());
+		if ((option.equals("Use")) && isRecoilRing(itemId) && target.startsWith("Ring of recoil -> Ring of suffering")) {
 			overrideItemId = itemId;
 		}
 	}
@@ -330,9 +376,7 @@ public class RingOfRecoilPlugin extends Plugin {
 		}
 		overrideItemId = -1;
 
-		data.ringCharges.put(ring, charges);
-		updateCharges();
-		log.debug("Charges for ring {} set to {}", ring, charges);
+		setCharges(ring, charges);
 	}
 
 	private int getChargesFromChatMessage(ChatMessage chatMessage) {
@@ -360,6 +404,12 @@ public class RingOfRecoilPlugin extends Plugin {
 		matcher = Constants.RECOIL_FULLY_CHARGED_REGEX.matcher(msg);
 		if (matcher.find()) {
 			return Constants.RECOIL_FULL_RECHARGE;
+		}
+
+		matcher = Constants.SUFFERING_RECHARGE_REGEX.matcher(msg);
+		if (matcher.find()) {
+			data.ringCharges.put(Constants.RING_OF_RECOIL_ID, Constants.RECOIL_FULL_RECHARGE);
+			return Integer.parseUnsignedInt(matcher.group(1).replace(",", ""));
 		}
 
 		matcher = Constants.RECOIL_SHATTER_REGEX.matcher(msg);

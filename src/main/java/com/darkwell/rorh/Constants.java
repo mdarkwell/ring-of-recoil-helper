@@ -48,6 +48,11 @@ public class Constants {
 
 	public static final Pattern RECOIL_FULLY_CHARGED_REGEX = Pattern.compile("The ring is fully charged\\. There would be no point in breaking it\\.");
 
+	public static final Pattern SUFFERING_RECHARGE_REGEX = Pattern.compile("You load your ring with .*?\\. It now has (\\d{1,3}(?:,\\d{3})*(?:\\.\\d+)?) recoil charges\\.");
+
+	public static final Pattern RECOIL_BREAK_CHARGES = Pattern.compile("Status: (\\d+) damage .*? left\\.");
+	public static final int RECOIL_BREAK_CHAT_WIDGET = 219;
+
 	public static final HashMap<Integer, String> AREA_REGIONS = new HashMap<>(Map.of(
 		7, "areaGwd",
 		8, "areaSucc",
